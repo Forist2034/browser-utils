@@ -1,0 +1,24 @@
+{
+    "name": "browser utils history recorder",
+    "description": "Browser sync history recorder",
+    "manifest_version": 2,
+    "version": "1.0",
+    "browser_specific_settings": {
+        "gecko": {
+            "id": "browser-utils.history-recorder@Forist2034.github.com",
+            "strict_min_version": "50.0"
+        }
+    },
+    "background": {
+        "persistent": true,
+        "scripts": [
+            "background.js"
+        ]
+    },
+    "permissions": [
+        "history",
+        "nativeMessaging",
+        "notifications",
+        "storage"
+    ]
+}

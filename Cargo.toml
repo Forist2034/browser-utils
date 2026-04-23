@@ -1,0 +1,12 @@
+[workspace]
+members = ["history/core","history/extension-host"]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1.0.102"
+chrono = { version = "0.4.44", features = ["serde"] }
+indexmap = { version = "2.14.0", features = ["serde"] }
+rustix = { version = "1.1.4", features = ["fs"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.23.1", features = ["v7", "serde"] }
