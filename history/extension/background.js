@@ -1,6 +1,6 @@
 let port = browser.runtime.connectNative("browser_utils_history_host");
 
-browser.storage.sync.get("root").then((data) => {
+browser.storage.local.get("root").then((data) => {
   console.log(data);
   port.postMessage({ init: { root: data.root } });
 });
