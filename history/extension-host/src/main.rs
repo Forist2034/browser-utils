@@ -10,13 +10,22 @@ use chrono::{DateTime, Datelike};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use browser_utils_history_core::{Entry, EntryTitle, Event, EventKind, Info};
+use browser_utils_history_core::{BrowserInfo, Entry, EntryTitle, Event, EventKind, Info};
 
+#[derive(Debug, Clone, Deserialize)]
+struct MsgBrowserInfo {
+    name: String,
+    vendor: String,
+    version: String,
+    #[serde(rename = "buildID")]
+    build_id: String,
+}
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum Message {
     Init {
         root: String,
+        browser: MsgBrowserInfo,
     },
     OnVisit {
         id: String,
@@ -145,17 +154,39 @@ fn reply_error(e: &anyhow::Error, output: &mut Stdout) -> anyhow::Result<()> {
     output.write_all(&buf).context("failed to write reply")
 }
 
-fn wait_root(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<String> {
+fn wait_root(
+    input: &mut Stdin,
+    output: &mut Stdout,
+) -> anyhow::Result<Option<(String, BrowserInfo<String>)>> {
     let mut buf = Vec::new();
     loop {
         match read_message(&mut buf, &mut *input).context("failed to read input message")? {
-            Some(Message::Init { root }) => return Ok(root),
-            Some(Message::Disconnect) => std::process::exit(0),
+            Some(Message::Init {
+                root,
+                browser:
+                    MsgBrowserInfo {
+                        name,
+                        vendor,
+                        version,
+                        build_id,
+                    },
+            }) => {
+                return Ok(Some((
+                    root,
+                    BrowserInfo {
+                        name,
+                        vendor,
+                        version,
+                        build_id,
+                    },
+                )));
+            }
+            Some(Message::Disconnect) => return Ok(None),
             Some(_) => reply_error(
                 &anyhow::Error::msg("storage root should be sent first"),
                 &mut *output,
             )?,
-            None => std::process::exit(0),
+            None => return Ok(None),
         }
     }
 }
@@ -168,7 +199,9 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         start_time.timestamp_subsec_nanos(),
     ));
 
-    let root = wait_root(&mut *input, &mut *output)?;
+    let Some((root, browser)) = wait_root(&mut *input, &mut *output)? else {
+        return Ok(());
+    };
 
     let mut base_path = format!(
         "{root}/{year}/{year}-{month:02}",
@@ -205,16 +238,20 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         .open(base_path.with_added_extension("entries.json"))
         .context("failed to create entry json file")?;
 
+    let mut info = Info {
+        id,
+        browser: BrowserInfo {
+            name: browser.name.as_str(),
+            vendor: browser.vendor.as_str(),
+            version: browser.version.as_str(),
+            build_id: browser.build_id.as_str(),
+        },
+        hostname,
+        start_time,
+        end_time: None,
+    };
     info_file
-        .write_all(
-            &serde_json::to_vec_pretty(&Info {
-                id,
-                hostname,
-                start_time,
-                end_time: None,
-            })
-            .unwrap(),
-        )
+        .write_all(&serde_json::to_vec_pretty(&info).unwrap())
         .context("failed to write info")?;
 
     let mut in_buf = Vec::new();
@@ -235,16 +272,8 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         .context("failed to write entries")?;
 
     event_buf.clear();
-    serde_json::to_writer_pretty(
-        &mut event_buf,
-        &Info {
-            id,
-            hostname,
-            start_time,
-            end_time: Some(chrono::Local::now().into()),
-        },
-    )
-    .unwrap();
+    info.end_time = Some(chrono::Local::now().into());
+    serde_json::to_writer_pretty(&mut event_buf, &info).unwrap();
     info_file
         .seek(std::io::SeekFrom::Start(0))
         .and_then(|_| {

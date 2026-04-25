@@ -1,8 +1,14 @@
 let port = browser.runtime.connectNative("browser_utils_history_host");
 
 browser.storage.local.get("root").then((data) => {
-  console.log(data);
-  port.postMessage({ init: { root: data.root } });
+  browser.runtime.getBrowserInfo().then((info) => {
+    const val = {
+      root: data.root,
+      browser: info,
+    };
+    console.log(val);
+    port.postMessage({ init: val });
+  });
 });
 
 port.onMessage.addListener((err) => {
