@@ -2,7 +2,6 @@ use std::{
     fs::{self, File},
     io::{Read, Seek, Stdin, Stdout, Write},
     os::unix::fs::OpenOptionsExt,
-    path::Path,
 };
 
 use anyhow::Context;
@@ -203,17 +202,13 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         return Ok(());
     };
 
-    let mut base_path = format!(
-        "{root}/{year}/{year}-{month:02}",
+    let base_path = format!(
+        "{root}/{year}/{year}-{month:02}/{id}",
         year = start_time.year(),
         month = start_time.month()
     );
     fs::create_dir_all(&base_path).context("failed to create dir")?;
-    {
-        use std::fmt::Write;
-        let _ = write!(&mut base_path, "/{id}");
-    }
-    let base_path = Path::new(&base_path);
+    std::env::set_current_dir(&base_path).context("failed to change to dir")?;
 
     let hostname =
         fs::read_to_string("/proc/sys/kernel/hostname").context("failed to get hostname")?;
@@ -223,19 +218,19 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         .create_new(true)
         .write(true)
         .mode(0o444)
-        .open(base_path.with_added_extension("info.json"))
+        .open("info.json")
         .context("failed to create info file")?;
     let mut event_file = fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .mode(0o444)
-        .open(base_path.with_added_extension("events.json"))
+        .open("events.json")
         .context("failed to create event file")?;
     let mut entries_file = fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .mode(0o444)
-        .open(base_path.with_added_extension("entries.json"))
+        .open("entries.json")
         .context("failed to create entry json file")?;
 
     let mut info = Info {
