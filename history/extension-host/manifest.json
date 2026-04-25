@@ -1,0 +1,9 @@
+{
+    "name": "browser_utils_history_host",
+    "description": "Browser utils history record host",
+    "path": "@out_dir@/bin/browser-utils-history-host",
+    "type": "stdio",
+    "allowed_extensions": [
+        "browser-utils.history-recorder@Forist2034.github.com"
+    ]
+}
