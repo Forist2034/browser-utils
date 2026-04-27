@@ -9,7 +9,7 @@ use chrono::{DateTime, Datelike};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use browser_utils_history_core::{BrowserInfo, Entry, EntryTitle, Event, EventKind, Info};
+use browser_utils_history_core::{BrowserInfo, Event, Info};
 
 #[derive(Debug, Clone, Deserialize)]
 struct MsgBrowserInfo {
@@ -26,24 +26,12 @@ enum Message {
         root: String,
         browser: MsgBrowserInfo,
     },
-    OnVisit {
-        id: String,
-        #[serde(default)]
-        url: Option<String>,
-        #[serde(default)]
-        title: Option<String>,
-    },
-    OnTitleUpdate {
-        id: String,
-        #[serde(default)]
-        title: Option<String>,
-    },
+    Event(serde_json::Value),
     Disconnect,
 }
 
 fn handle_message(
     event_file: &mut File,
-    entries: &mut indexmap::IndexMap<String, Entry<String>>,
     event_buf: &mut Vec<u8>,
     msg: Message,
 ) -> anyhow::Result<()> {
@@ -58,66 +46,16 @@ fn handle_message(
     event_buf.push(0x1e);
     match msg {
         Message::Init { .. } => anyhow::bail!("repeated init message"),
-        Message::OnVisit {
-            id: browser_id,
-            url,
-            title,
-        } => {
+        Message::Event(event) => {
             serde_json::to_writer(
                 &mut *event_buf,
                 &Event {
                     id,
-                    browser_id: &browser_id,
                     timestamp,
-                    event: EventKind::Visit {
-                        url: url.as_ref().map(String::as_str),
-                        title: title.as_ref().map(String::as_str),
-                    },
+                    event,
                 },
             )
             .unwrap();
-
-            entries.insert(
-                browser_id.clone(),
-                Entry {
-                    id,
-                    visit_event_id: id,
-                    timestamp,
-                    url,
-                    titles: Vec::from([EntryTitle {
-                        event_id: id,
-                        timestamp,
-                        title,
-                    }]),
-                },
-            );
-        }
-        Message::OnTitleUpdate {
-            id: browser_id,
-            title,
-        } => {
-            let entry = entries
-                .get_mut(&browser_id)
-                .context("missing visit event")?;
-            serde_json::to_writer(
-                &mut *event_buf,
-                &Event {
-                    id,
-                    browser_id: &browser_id,
-                    timestamp,
-                    event: EventKind::TitleUpdate {
-                        visit_event: entry.visit_event_id,
-                        title: title.as_ref().map(String::as_str),
-                    },
-                },
-            )
-            .unwrap();
-
-            entry.titles.push(EntryTitle {
-                event_id: id,
-                timestamp,
-                title,
-            });
         }
         Message::Disconnect => return Ok(()),
     };
@@ -226,12 +164,6 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
         .mode(0o444)
         .open("events.json")
         .context("failed to create event file")?;
-    let mut entries_file = fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .mode(0o444)
-        .open("entries.json")
-        .context("failed to create entry json file")?;
 
     let mut info = Info {
         id,
@@ -251,20 +183,12 @@ fn run(input: &mut Stdin, output: &mut Stdout) -> anyhow::Result<()> {
 
     let mut in_buf = Vec::new();
     let mut event_buf = Vec::new();
-    let mut entries = indexmap::IndexMap::new();
 
     while let Some(msg) = read_message(&mut in_buf, &mut *input)? {
-        if let Err(e) = handle_message(&mut event_file, &mut entries, &mut event_buf, msg) {
+        if let Err(e) = handle_message(&mut event_file, &mut event_buf, msg) {
             reply_error(&e, &mut *output)?;
         }
     }
-
-    event_buf.clear();
-    serde_json::to_writer_pretty(&mut event_buf, &entries.into_values().collect::<Vec<_>>())
-        .unwrap();
-    entries_file
-        .write_all(&mut event_buf)
-        .context("failed to write entries")?;
 
     event_buf.clear();
     info.end_time = Some(chrono::Local::now().into());
