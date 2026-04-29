@@ -2,7 +2,7 @@
     "name": "browser utils history recorder",
     "description": "Browser sync history recorder",
     "manifest_version": 2,
-    "version": "1.0",
+    "version": "1.1",
     "browser_specific_settings": {
         "gecko": {
             "id": "browser-utils.history-recorder@Forist2034.github.com",

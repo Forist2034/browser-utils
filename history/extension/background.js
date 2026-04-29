@@ -1,4 +1,4 @@
-let port = browser.runtime.connectNative("browser_utils_history_host2");
+let port = browser.runtime.connectNative("browser_utils_history_host");
 
 browser.storage.local.get("root").then((data) => {
   browser.runtime.getBrowserInfo().then((info) => {
