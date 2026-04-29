@@ -44,13 +44,18 @@
 
                 src = ./history/extension;
 
-                nativeBuildInputs = [ pkgs.web-ext ];
+                nativeBuildInputs = [
+                  pkgs.web-ext
+                  pkgs.strip-nondeterminism
+                ];
 
                 buildCommand = ''
                   web-ext build -s "$src"
+                  outfile='web-ext-artifacts/${pname}-${version}.zip'
+                  strip-nondeterminism "$outfile"
                   dest="$out/share/mozilla/extensions/{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
                   mkdir -p "$dest"
-                  install -v -m644 "web-ext-artifacts/${pname}-${version}.zip" "$dest/${addonId}.xpi"
+                  install -v -m644 "$outfile" "$dest/${addonId}.xpi"
                 '';
 
                 passthru = {
